@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { test } from "node:test";
 
 const root = process.cwd();
@@ -20,9 +20,44 @@ test("home proxies /cart routes to the cart service without doubling the path", 
   assert.deepEqual(rewrites, [
     {
       source: "/cart/:path*",
-      destination: "http://localhost:3001/cart/:path*",
+      destination: "http://localhost:3002/cart/:path*",
     },
   ]);
+});
+
+test("both zones emit standalone output traced from the monorepo root", async () => {
+  const homeConfig = (await import("../apps/home/next.config.mjs")).default;
+  const cartConfig = (await import("../apps/cart/next.config.mjs")).default;
+
+  assert.equal(homeConfig.output, "standalone");
+  assert.equal(cartConfig.output, "standalone");
+  assert.equal(homeConfig.outputFileTracingRoot, resolve(root));
+  assert.equal(cartConfig.outputFileTracingRoot, resolve(root));
+});
+
+test("home compiles the cart rewrite from CART_ORIGIN when provided", async () => {
+  const previousCartOrigin = process.env.CART_ORIGIN;
+  process.env.CART_ORIGIN = "http://cart:3002";
+
+  try {
+    const homeConfig = (
+      await import(`../apps/home/next.config.mjs?cart-origin=${Date.now()}`)
+    ).default;
+    const rewrites = await homeConfig.rewrites();
+
+    assert.deepEqual(rewrites, [
+      {
+        source: "/cart/:path*",
+        destination: "http://cart:3002/cart/:path*",
+      },
+    ]);
+  } finally {
+    if (previousCartOrigin === undefined) {
+      delete process.env.CART_ORIGIN;
+    } else {
+      process.env.CART_ORIGIN = previousCartOrigin;
+    }
+  }
 });
 
 test("home cart navigation uses a normal anchor across zones", () => {

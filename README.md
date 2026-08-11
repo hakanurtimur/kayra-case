@@ -3,9 +3,9 @@
 Kayra is a frontend take-home project built as a small e-commerce demo with two independently buildable Next.js applications:
 
 - `apps/home` serves the shopping experience on port `3000`.
-- `apps/cart` serves the cart zone on port `3001`.
+- `apps/cart` serves the cart zone on port `3002`.
 
-This repository is currently at **Phase 3: synchronized cart micro-frontend**. Docker and final UI polish remain out of scope until later phases.
+This repository is currently at **Phase 4: production containerization**. Final UI polish, CI/CD, and Phase 5 work remain out of scope.
 
 ## Architecture
 
@@ -23,6 +23,8 @@ packages/
 
 `home` and `cart` are separate Next.js App Router applications. Shared package shells live under `packages/` so later phases can share UI, types, and cart contract code without coupling the apps into one runtime.
 
+Each application can also be built as an independent production container. Next.js standalone output traces the runtime files needed by that application from the monorepo root, and each image runs its generated server as a non-root user.
+
 ## Multi-Zone Routing
 
 This project uses **Next.js Multi-Zone**, not Module Federation. Multi-Zone keeps each frontend independently buildable and deployable while letting one origin compose the user-facing routes.
@@ -30,8 +32,8 @@ This project uses **Next.js Multi-Zone**, not Module Federation. Multi-Zone keep
 For local Phase 1 development:
 
 - Home runs at `http://localhost:3000`.
-- Cart runs at `http://localhost:3001/cart`.
-- Home rewrites `/cart/:path*` to `http://localhost:3001/cart/:path*`.
+- Cart runs at `http://localhost:3002/cart`.
+- Home rewrites `/cart/:path*` to `http://localhost:3002/cart/:path*`.
 
 The cart app sets:
 
@@ -89,11 +91,13 @@ This approach is intended for the composed Multi-Zone experience served through 
 When the apps are accessed directly as separate origins, such as:
 
 - `http://localhost:3000`
-- `http://localhost:3001/cart`
+- `http://localhost:3002/cart`
 
-`localStorage` is scoped per origin and cannot be shared between them. This means an item added on direct port 3000 is not visible when the cart app is opened directly on port 3001.
+`localStorage` is scoped per origin and cannot be shared between them. This means an item added on direct port 3000 is not visible when the cart app is opened directly on port 3002.
 
 `localStorage` is only a task-level persistence mechanism. A production implementation would normally make cart state backend-owned so authenticated users can persist across origins, deployments, sessions, and devices. A cart API would also reconcile inventory and pricing, and would normally return enriched cart lines or support efficient batch product lookup.
+
+The same origin rule applies to Docker. Use `http://localhost:3000/cart` for the composed flow. Opening `http://localhost:3002/cart` directly creates a different browser origin, so its cart storage is intentionally independent.
 
 ## Server and Client Components
 
@@ -111,6 +115,75 @@ The cart application uses TanStack Query inside its interactive client boundary.
 
 Redux and Zustand are not used. The durable cart has a small framework-independent contract, and React only needs a `useState`/`useEffect` subscription bridge. A global store would duplicate that state and would not make two independently built zones share a runtime. For a production system, the backend cart API and a server-state cache would replace browser storage as the source of truth.
 
+## Production Containers
+
+The repository contains separate multi-stage Dockerfiles:
+
+- `apps/home/Dockerfile` builds and runs the home application on port `3000`.
+- `apps/cart/Dockerfile` builds and runs the cart application on port `3002`.
+
+Both Dockerfiles use the repository root as their build context so pnpm can resolve the workspace lockfile and shared packages. Their build stages install dependencies with `pnpm install --frozen-lockfile` and build only the selected application. Their final stages contain the generated standalone server, its traced runtime files, and static assets; they do not copy the full source tree or the builder's complete dependency installation. The runners set `NODE_ENV=production`, bind to `0.0.0.0`, and run as the non-root `node` user.
+
+Both Next.js configs use:
+
+```js
+output: "standalone"
+outputFileTracingRoot: resolve(appDirectory, "../..")
+```
+
+The root is calculated from each config file at build time rather than hardcoded. Tracing from the monorepo root is required because runtime dependencies can come from `packages/` and the root pnpm installation. The generated entry points are `apps/home/server.js` and `apps/cart/server.js` inside their standalone output. Next.js does not copy `.next/static` into standalone automatically, so the Dockerfiles copy those assets separately.
+
+### Cart Origin And Docker Networking
+
+The home config reads `CART_ORIGIN` and defaults to `http://localhost:3002` for direct local development. Docker Compose builds home with:
+
+```text
+CART_ORIGIN=http://cart:3002
+```
+
+`cart` is the service name on Compose's private default network, so Docker DNS resolves it without Nginx, host networking, or a host alias. The browser still uses `http://localhost:3000`; only the server-side rewrite talks to `http://cart:3002`.
+
+Next.js evaluates `rewrites()` during `next build` and records the destination in the route manifest. The home Dockerfile therefore declares `CART_ORIGIN` as a build argument and exports it in the builder stage. This value is effectively **build-time configuration** for the production image. Changing only a running container's environment does not update the compiled rewrite; rebuild the home image with the new argument.
+
+### Build And Run
+
+Build each image independently from the repository root:
+
+```bash
+docker build -f apps/home/Dockerfile \
+  --build-arg CART_ORIGIN=http://cart:3002 \
+  -t kayra-home .
+docker build -f apps/cart/Dockerfile -t kayra-cart .
+```
+
+Build and start the composed production environment:
+
+```bash
+docker compose down --remove-orphans
+docker compose build --no-cache
+docker compose up -d
+docker compose ps
+docker compose logs home cart
+```
+
+Open the composed experience at `http://localhost:3000`. The independent cart service is also exposed at `http://localhost:3002/cart` for service-level verification. Stop and remove the environment with:
+
+```bash
+docker compose down --remove-orphans
+```
+
+### Healthchecks
+
+The cart healthcheck requests `http://127.0.0.1:3002/cart`. Home waits for cart to become healthy, then its healthcheck requests `http://127.0.0.1:3000/`. Both checks use Node's built-in HTTP client, so the minimal runner images do not need `curl` or `wget`.
+
+### Troubleshooting
+
+- If port `3000` or `3002` is already in use, stop the local Next.js process or other container using that port before starting Compose.
+- If `/cart` through port `3000` cannot reach cart, inspect `docker compose ps` and `docker compose logs home cart`; cart must be healthy and home must have been built with `CART_ORIGIN=http://cart:3002`.
+- If the cart service name or internal port changes, rebuild home. Restarting the old image with a different environment value does not change its compiled rewrite manifest.
+- If product requests fail, verify that containers and the browser can reach `https://fakestoreapi.com`. The home error state and cart retry state remain available when the external API is unavailable.
+- If JavaScript or CSS under `/cart` returns 404, confirm that the cart standalone image includes `apps/cart/.next/static` and access cart through the `/cart` base path.
+
 ## Commands
 
 Install dependencies:
@@ -125,7 +198,7 @@ Run home on port 3000:
 pnpm --filter @kayra/home dev
 ```
 
-Run cart on port 3001:
+Run cart on port 3002:
 
 ```bash
 pnpm --filter @kayra/cart dev
@@ -168,8 +241,11 @@ Build all apps:
 pnpm build
 ```
 
-## Phase 1 Trade-Offs
+The Docker production commands are documented in [Production Containers](#production-containers).
+
+## Architecture Trade-Offs
 
 - Multi-Zone is simpler and more predictable with Next.js App Router than Module Federation for this assignment.
-- Shared packages are intentionally small in Phase 1. They establish workspace boundaries without adding placeholder product or cart implementations.
-- Cart synchronization is documented now, but implemented later so Phase 1 stays focused on the foundation.
+- Shared packages preserve explicit contracts without forcing the applications into one runtime.
+- Standalone images are smaller and contain less build tooling than images that copy the complete workspace and run `next start`.
+- Separate Dockerfiles duplicate a small amount of setup, but make each application's independent build and runtime contract obvious.
