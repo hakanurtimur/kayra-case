@@ -9,6 +9,8 @@ coverage
 .playwright-cli
 .pnpm-store
 output/playwright
+playwright-report
+test-results
 *.tsbuildinfo
 
 .env

@@ -34,6 +34,7 @@ ENV PORT=3002
 
 COPY --from=builder --chown=node:node /workspace/apps/cart/.next/standalone ./
 COPY --from=builder --chown=node:node /workspace/apps/cart/.next/static ./apps/cart/.next/static
+COPY --from=builder --chown=node:node /workspace/apps/cart/public ./apps/cart/public
 
 USER node
 

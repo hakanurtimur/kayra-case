@@ -37,6 +37,7 @@ ENV PORT=3000
 
 COPY --from=builder --chown=node:node /workspace/apps/home/.next/standalone ./
 COPY --from=builder --chown=node:node /workspace/apps/home/.next/static ./apps/home/.next/static
+COPY --from=builder --chown=node:node /workspace/apps/home/public ./apps/home/public
 
 USER node
 

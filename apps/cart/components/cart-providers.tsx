@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MotionConfig } from "motion/react";
 import { Toaster } from "sonner";
 
 type CartProvidersProps = {
@@ -24,8 +25,21 @@ export function CartProviders({ children }: CartProvidersProps) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {children}
-      <Toaster closeButton position="bottom-right" richColors />
+      <MotionConfig reducedMotion="user">{children}</MotionConfig>
+      <Toaster
+        closeButton
+        mobileOffset={{ left: 16, right: 16, top: 76 }}
+        offset={{ right: 24, top: 88 }}
+        position="top-right"
+        toastOptions={{
+          classNames: {
+            closeButton: "!border-0 !bg-surface !text-ink",
+            description: "!text-white/70",
+            title: "!font-bold !text-white",
+            toast: "!rounded-lg !border-0 !bg-ink !text-white !shadow-lift",
+          },
+        }}
+      />
     </QueryClientProvider>
   );
 }

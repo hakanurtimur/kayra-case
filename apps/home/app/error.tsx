@@ -1,35 +1,35 @@
 "use client";
 
+import { CircleAlert, RotateCcw } from "lucide-react";
+import { Container, StatePanel } from "@kayra/ui";
+
 type ErrorPageProps = {
   error: Error;
   reset: () => void;
 };
 
-export default function ErrorPage({ error, reset }: ErrorPageProps) {
+export default function ErrorPage({ reset }: ErrorPageProps) {
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-3xl items-center px-6 py-12 sm:px-8">
-      <section
-        aria-labelledby="catalog-error-heading"
-        className="w-full rounded-lg border border-red-200 bg-white p-6 shadow-sm sm:p-8"
-      >
-        <p className="text-sm font-medium text-red-700">Catalog unavailable</p>
-        <h1
-          id="catalog-error-heading"
-          className="mt-3 text-2xl font-semibold tracking-normal text-ink"
-        >
-          We could not load the products.
-        </h1>
-        <p className="mt-3 text-sm leading-6 text-slate-600">
-          {error.message || "Please try again in a moment."}
-        </p>
-        <button
-          type="button"
-          onClick={reset}
-          className="mt-6 rounded-md bg-pine px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pine"
-        >
-          Try Again
-        </button>
-      </section>
-    </div>
+    <main>
+      <Container className="flex min-h-[calc(100vh-4.5rem)] items-center py-12">
+        <StatePanel
+          action={
+            <button
+              type="button"
+              onClick={reset}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-ink px-5 text-sm font-bold text-white transition duration-200 ease-premium hover:-translate-y-0.5 hover:bg-ink/85 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+            >
+              <RotateCcw aria-hidden="true" size={17} />
+              Try again
+            </button>
+          }
+          description="The catalog is temporarily unavailable. Please try again in a moment."
+          icon={<CircleAlert aria-hidden="true" size={24} />}
+          title="We could not load the products"
+          titleLevel={1}
+          tone="danger"
+        />
+      </Container>
+    </main>
   );
 }

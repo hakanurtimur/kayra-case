@@ -1,50 +1,116 @@
-import { CartLink } from "@/components/cart-link";
+import { PackageOpen } from "lucide-react";
+import { Container, StatePanel } from "@kayra/ui";
+import { CatalogHero } from "@/components/catalog-hero";
+import { CategoryShowcase } from "@/components/category-showcase";
+import { CategoryNav } from "@/components/category-nav";
+import { PopularShelf } from "@/components/popular-shelf";
 import { ProductCard } from "@/components/product-card";
+import { StoreFooter } from "@/components/store-footer";
+import { TrustStrip } from "@/components/trust-strip";
+import {
+  catalogCategories,
+  filterCatalogProducts,
+  getFeaturedProduct,
+  getPopularProducts,
+  parseCatalogCategory,
+  type CatalogCategory,
+} from "@/lib/catalog";
 import { getProducts } from "@/lib/fake-store";
 
-export default async function HomePage() {
+type HomePageProps = {
+  searchParams: Promise<{
+    category?: string | string[];
+  }>;
+};
+
+export default async function HomePage({ searchParams }: HomePageProps) {
+  const { category } = await searchParams;
   const products = await getProducts();
+  const selectedCategory = parseCatalogCategory(category);
+  const visibleProducts = filterCatalogProducts(products, selectedCategory);
+  const featuredProduct = getFeaturedProduct(products);
+  const popularProducts = getPopularProducts(products);
+  const activeCategory = catalogCategories.find(
+    (candidate) => candidate.slug === selectedCategory,
+  );
+  const categoryCounts = Object.fromEntries(
+    catalogCategories.map((candidate) => [
+      candidate.slug,
+      filterCatalogProducts(products, candidate.slug).length,
+    ]),
+  ) as Record<CatalogCategory, number>;
+  const categoryFeatures = catalogCategories.flatMap((candidate) => {
+    if (!candidate.value) {
+      return [];
+    }
+
+    const product = products.find(
+      (catalogProduct) => catalogProduct.category === candidate.value,
+    );
+
+    return product
+      ? [
+          {
+            count: categoryCounts[candidate.slug],
+            label: candidate.label,
+            product,
+            slug: candidate.slug,
+          },
+        ]
+      : [];
+  });
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-6 py-6 sm:px-8 lg:px-10">
-      <main className="flex-1 py-10 sm:py-14">
-        <section className="flex flex-col gap-5 border-b border-slate-200 pb-8 md:flex-row md:items-end md:justify-between">
-          <div className="max-w-2xl space-y-3">
-            <p className="text-sm font-medium text-pine">Kayra Shop</p>
-            <h1 className="text-3xl font-semibold tracking-normal text-ink sm:text-4xl">
-              Products
-            </h1>
-            <p className="text-base leading-7 text-slate-600">
-              Browse everyday picks across apparel, jewelry, and electronics in
-              a clean catalog built for quick scanning.
+    <main>
+      {featuredProduct ? <CatalogHero product={featuredProduct} /> : null}
+      <CategoryShowcase categories={categoryFeatures} />
+      <PopularShelf products={popularProducts} />
+      <CategoryNav
+        counts={categoryCounts}
+        selectedCategory={selectedCategory}
+      />
+
+      <Container className="pb-16 pt-8 sm:pb-20 sm:pt-10 lg:pt-12">
+        <section
+          id="catalog"
+          className="flex items-end justify-between gap-4 scroll-mt-24"
+        >
+          <div>
+            <p className="text-sm font-bold text-muted">
+              {selectedCategory === "all" ? "The full edit" : "Filtered edit"}
             </p>
+            <h2 className="mt-1 text-3xl font-black text-ink sm:text-4xl">
+              {selectedCategory === "all"
+                ? "Shop all"
+                : `Shop ${activeCategory?.label.toLowerCase() ?? "all"}`}
+            </h2>
           </div>
-          <CartLink />
+          <p className="shrink-0 text-sm font-bold text-muted">
+            {visibleProducts.length} {visibleProducts.length === 1 ? "piece" : "pieces"}
+          </p>
         </section>
 
-        {products.length > 0 ? (
+        {visibleProducts.length > 0 ? (
           <section
             aria-label="Product catalog"
-            className="grid gap-5 py-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+            className="grid grid-cols-2 gap-x-3 gap-y-8 pt-6 sm:grid-cols-3 sm:gap-x-5 sm:gap-y-10 sm:pt-8 lg:grid-cols-4 lg:gap-x-6 lg:gap-y-12"
           >
-            {products.map((product) => (
-              <ProductCard key={product.id} product={product} />
+            {visibleProducts.map((product, index) => (
+              <ProductCard key={product.id} index={index} product={product} />
             ))}
           </section>
         ) : (
-          <section className="py-12">
-            <div className="rounded-lg border border-slate-200 bg-white p-8 text-center">
-              <h2 className="text-xl font-semibold text-ink">
-                No products available
-              </h2>
-              <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-600">
-                The catalog is empty right now. Please check back once products
-                are available from the API.
-              </p>
-            </div>
-          </section>
+          <div className="py-12">
+            <StatePanel
+              description="The catalog is empty right now. Check back once products are available."
+              icon={<PackageOpen aria-hidden="true" size={24} />}
+              title="No pieces in this edit"
+            />
+          </div>
         )}
-      </main>
-    </div>
+      </Container>
+      <TrustStrip />
+      <StoreFooter />
+    </main>
   );
 }

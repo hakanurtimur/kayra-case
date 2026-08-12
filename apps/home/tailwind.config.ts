@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import { veyraTheme } from "../../packages/ui/src/theme";
 
 const config: Config = {
   content: [
@@ -7,14 +8,7 @@ const config: Config = {
     "../../packages/ui/src/**/*.{ts,tsx}",
   ],
   theme: {
-    extend: {
-      colors: {
-        ink: "#172033",
-        paper: "#f8fafc",
-        pine: "#17645c",
-        saffron: "#d99528",
-      },
-    },
+    extend: veyraTheme,
   },
   plugins: [],
 };

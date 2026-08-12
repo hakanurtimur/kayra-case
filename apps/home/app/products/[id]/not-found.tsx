@@ -1,30 +1,27 @@
 import Link from "next/link";
+import { ArrowLeft, PackageX } from "lucide-react";
+import { Container, StatePanel } from "@kayra/ui";
 
 export default function ProductNotFound() {
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-3xl items-center px-6 py-12 sm:px-8">
-      <section
-        aria-labelledby="product-not-found-heading"
-        className="w-full rounded-lg border border-slate-200 bg-white p-6 text-center shadow-sm sm:p-8"
-      >
-        <p className="text-sm font-medium text-pine">Product not found</p>
-        <h1
-          id="product-not-found-heading"
-          className="mt-3 text-2xl font-semibold tracking-normal text-ink"
-        >
-          This product is not available.
-        </h1>
-        <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-600">
-          The product may have been removed, or the link may point to an invalid
-          catalog item.
-        </p>
-        <Link
-          href="/"
-          className="mt-6 inline-flex rounded-md bg-pine px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pine"
-        >
-          Back to Products
-        </Link>
-      </section>
-    </div>
+    <main>
+      <Container className="flex min-h-[calc(100vh-4.5rem)] items-center py-12">
+        <StatePanel
+          action={
+            <Link
+              href="/"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-ink px-5 text-sm font-bold text-white transition duration-200 ease-premium hover:-translate-y-0.5 hover:bg-ink/85 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+            >
+              <ArrowLeft aria-hidden="true" size={17} />
+              Back to products
+            </Link>
+          }
+          description="The product may have been removed, or this link may point to an invalid catalog item."
+          icon={<PackageX aria-hidden="true" size={24} />}
+          title="This product is not available"
+          titleLevel={1}
+        />
+      </Container>
+    </main>
   );
 }

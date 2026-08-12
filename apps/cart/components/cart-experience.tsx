@@ -7,7 +7,16 @@ import {
   removeFromCart,
   updateCartItem,
 } from "@kayra/cart-contract";
+import {
+  ArrowRight,
+  CircleAlert,
+  PackageOpen,
+  RotateCcw,
+  Trash2,
+} from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
+import { StatePanel } from "@kayra/ui";
 import { useCart } from "@/hooks/use-cart";
 import { createCartLines } from "@/lib/cart-lines";
 import { getProducts } from "@/lib/fake-store";
@@ -23,6 +32,11 @@ const currencyFormatter = new Intl.NumberFormat("en-US", {
   currency: "USD",
 });
 
+const enterTransition = {
+  duration: 0.42,
+  ease: [0.22, 1, 0.36, 1] as const,
+};
+
 export function CartExperience({ homeHref }: CartExperienceProps) {
   const { isHydrated, items } = useCart();
   const productsQuery = useQuery({
@@ -37,54 +51,54 @@ export function CartExperience({ homeHref }: CartExperienceProps) {
 
   if (items.length === 0) {
     return (
-      <section
-        aria-labelledby="empty-cart-heading"
-        className="rounded-lg border border-slate-200 bg-white px-6 py-14 text-center shadow-sm"
+      <motion.div
+        initial={{ opacity: 0.92, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={enterTransition}
       >
-        <h2
-          id="empty-cart-heading"
-          className="text-2xl font-semibold tracking-normal text-ink"
-        >
-          Your cart is empty
-        </h2>
-        <p className="mx-auto mt-3 max-w-xl text-base leading-7 text-slate-600">
-          Browse the catalog and add something you would like to keep here.
-        </p>
-        <a
-          href={homeHref}
-          className="mt-6 inline-flex min-h-10 items-center rounded-md bg-pine px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pine"
-        >
-          Continue Shopping
-        </a>
-      </section>
+        <StatePanel
+          action={
+            <a
+              href={homeHref}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-ink px-5 text-sm font-bold text-white transition duration-200 ease-premium hover:-translate-y-0.5 hover:bg-ink/85 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+            >
+              Continue shopping
+              <ArrowRight aria-hidden="true" size={17} />
+            </a>
+          }
+          description="Browse the collection and add something worth keeping. Your picks will appear here."
+          icon={<PackageOpen aria-hidden="true" size={24} />}
+          title="Your cart is empty"
+        />
+      </motion.div>
     );
   }
 
   if (productsQuery.isError) {
     return (
-      <section
-        aria-labelledby="cart-error-heading"
-        className="rounded-lg border border-red-200 bg-white px-6 py-14 text-center shadow-sm"
+      <motion.div
+        initial={{ opacity: 0.92, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={enterTransition}
       >
-        <h2
-          id="cart-error-heading"
-          className="text-2xl font-semibold text-ink"
-        >
-          We could not load your cart details
-        </h2>
-        <p className="mx-auto mt-3 max-w-xl text-base leading-7 text-slate-600">
-          Your saved quantities are still here. Retry the product catalog when
-          the connection is available.
-        </p>
-        <button
-          type="button"
-          onClick={() => productsQuery.refetch()}
-          disabled={productsQuery.isFetching}
-          className="mt-6 inline-flex min-h-10 items-center rounded-md bg-pine px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pine disabled:cursor-wait disabled:bg-slate-400"
-        >
-          {productsQuery.isFetching ? "Retrying..." : "Retry"}
-        </button>
-      </section>
+        <StatePanel
+          action={
+            <button
+              type="button"
+              onClick={() => productsQuery.refetch()}
+              disabled={productsQuery.isFetching}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-ink px-5 text-sm font-bold text-white transition duration-200 ease-premium hover:-translate-y-0.5 hover:bg-ink/85 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink disabled:cursor-wait disabled:bg-muted"
+            >
+              <RotateCcw aria-hidden="true" size={17} />
+              {productsQuery.isFetching ? "Retrying..." : "Retry"}
+            </button>
+          }
+          description="Your saved quantities are still here. Retry once the product catalog is available."
+          icon={<CircleAlert aria-hidden="true" size={24} />}
+          title="We could not load your cart details"
+          tone="danger"
+        />
+      </motion.div>
     );
   }
 
@@ -123,88 +137,101 @@ export function CartExperience({ homeHref }: CartExperienceProps) {
 
   if (lines.length === 0) {
     return (
-      <section className="rounded-lg border border-amber-200 bg-white px-6 py-14 text-center shadow-sm">
-        <h2 className="text-2xl font-semibold text-ink">
-          Saved products are unavailable
-        </h2>
-        <p className="mx-auto mt-3 max-w-xl text-base leading-7 text-slate-600">
-          The catalog no longer contains the products saved in this cart.
-        </p>
-        <button
-          type="button"
-          onClick={handleClear}
-          className="mt-6 min-h-10 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-ink transition hover:border-pine hover:text-pine focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pine"
-        >
-          Clear Cart
-        </button>
-      </section>
+      <StatePanel
+        action={
+          <button
+            type="button"
+            onClick={handleClear}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-ink px-5 text-sm font-bold text-white transition duration-200 ease-premium hover:bg-ink/85 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+          >
+            <Trash2 aria-hidden="true" size={17} />
+            Clear cart
+          </button>
+        }
+        description="The catalog no longer contains the products saved in this cart."
+        icon={<PackageOpen aria-hidden="true" size={24} />}
+        title="Saved products are unavailable"
+        tone="warning"
+      />
     );
   }
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_19rem] lg:items-start">
+    <motion.div
+      className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start lg:gap-8"
+      initial={{ opacity: 0.94, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={enterTransition}
+    >
       <section aria-label="Cart items">
+        <p className="mb-4 text-sm font-bold text-ink" aria-live="polite">
+          {itemCount} {itemCount === 1 ? "item" : "items"} in your cart
+        </p>
+
         {missingItemCount > 0 ? (
-          <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p className="mb-4 rounded-md bg-warning-soft px-4 py-3 text-sm text-warning">
             Some saved products are no longer available and are excluded from
             the subtotal.
           </p>
         ) : null}
 
-        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-          {lines.map((line) => (
-            <CartItemRow
-              key={line.product.id}
-              homeHref={homeHref}
-              line={line}
-              onDecrement={() =>
-                handleDecrement(
-                  line.product.id,
-                  line.quantity,
-                  line.product.title,
-                )
-              }
-              onIncrement={() =>
-                updateCartItem(line.product.id, line.quantity + 1)
-              }
-              onRemove={() =>
-                handleRemove(line.product.id, line.product.title)
-              }
-            />
-          ))}
+        <div className="overflow-hidden rounded-lg bg-surface">
+          <AnimatePresence initial={false} mode="popLayout">
+            {lines.map((line) => (
+              <CartItemRow
+                key={line.product.id}
+                homeHref={homeHref}
+                line={line}
+                onDecrement={() =>
+                  handleDecrement(
+                    line.product.id,
+                    line.quantity,
+                    line.product.title,
+                  )
+                }
+                onIncrement={() =>
+                  updateCartItem(line.product.id, line.quantity + 1)
+                }
+                onRemove={() =>
+                  handleRemove(line.product.id, line.product.title)
+                }
+              />
+            ))}
+          </AnimatePresence>
         </div>
       </section>
 
       <aside
         aria-labelledby="cart-summary-heading"
-        className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm lg:sticky lg:top-6"
+        className="rounded-lg bg-ink p-6 text-white lg:sticky lg:top-28"
       >
-        <h2 id="cart-summary-heading" className="text-xl font-semibold text-ink">
+        <h2 id="cart-summary-heading" className="text-xl font-black">
           Summary
         </h2>
         <dl className="mt-6 space-y-4 text-sm">
-          <div className="flex items-center justify-between gap-4 text-slate-600">
+          <div className="flex items-center justify-between gap-4 text-white/65">
             <dt>Total items</dt>
-            <dd className="font-medium text-ink">{itemCount}</dd>
+            <dd className="font-bold text-white">{itemCount}</dd>
           </div>
-          <div className="flex items-center justify-between gap-4 border-t border-slate-200 pt-4">
-            <dt className="font-medium text-ink">Subtotal</dt>
-            <dd className="text-lg font-semibold text-ink">
+          <div className="flex items-end justify-between gap-4 border-t border-white/15 pt-5">
+            <dt className="font-bold text-white">Subtotal</dt>
+            <dd className="text-2xl font-black text-accent">
               {currencyFormatter.format(subtotal)}
             </dd>
           </div>
         </dl>
-        <p className="mt-4 text-xs leading-5 text-slate-500">
-          Taxes and shipping are not included in this demo.
+        <p className="mt-4 text-xs leading-5 text-white/55">
+          Taxes and shipping are outside this assignment.
         </p>
         <button
           type="button"
           onClick={handleClear}
-          className="mt-6 min-h-10 w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-ink transition hover:border-red-300 hover:bg-red-50 hover:text-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700"
+          className="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-white/20 px-4 text-sm font-bold text-white transition duration-200 ease-premium hover:border-danger hover:bg-danger focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
-          Clear Cart
+          <Trash2 aria-hidden="true" size={17} />
+          Clear cart
         </button>
       </aside>
-    </div>
+    </motion.div>
   );
 }

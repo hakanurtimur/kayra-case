@@ -6,8 +6,8 @@ type AppShellProps = {
 
 export function AppShell({ children }: AppShellProps) {
   return (
-    <main className="min-h-screen bg-paper text-ink antialiased">
+    <div className="min-h-screen bg-canvas pb-24 text-ink antialiased sm:pb-0">
       {children}
-    </main>
+    </div>
   );
 }

@@ -13,9 +13,9 @@
     "test:api:build": "pnpm test:unit:build",
     "test:cart-api": "pnpm test:unit:build && node --test .test-dist/tests/phase3-cart-api.test.js",
     "test:cart-contract": "pnpm test:unit:build && node --test .test-dist/tests/phase3-cart-contract.test.js",
-    "test:unit": "pnpm test:unit:build && node --test .test-dist/tests/phase2-api.test.js .test-dist/tests/phase3-cart-api.test.js .test-dist/tests/phase3-cart-contract.test.js .test-dist/tests/phase3-cart-lines.test.js",
+    "test:unit": "pnpm test:unit:build && node --test .test-dist/tests/phase2-api.test.js .test-dist/tests/phase3-cart-api.test.js .test-dist/tests/phase3-cart-contract.test.js .test-dist/tests/phase3-cart-lines.test.js .test-dist/tests/phase5-catalog.test.js",
     "test:unit:build": "tsc -p tsconfig.test.json",
-    "test:routes": "node --test tests/phase1-routing.test.mjs",
+    "test:routes": "node --test tests/phase1-routing.test.mjs tests/phase5-ui-contract.test.mjs",
     "typecheck": "pnpm -r --filter \"./apps/*\" --filter \"./packages/*\" typecheck"
   },
   "devDependencies": {
