@@ -3,6 +3,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
 
+const rootPackage = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+);
+
 const root = process.cwd();
 
 test("cart zone uses /cart basePath with a root app page", async () => {
@@ -69,4 +73,11 @@ test("home cart navigation uses a normal anchor across zones", () => {
 
   assert.match(cartLinkSource, /<a[\s\S]*href="\/cart"/);
   assert.doesNotMatch(cartLinkSource, /from "next\/link"/);
+});
+
+test("the workspace exposes one command for both development services", () => {
+  assert.equal(
+    rootPackage.scripts.dev,
+    'pnpm --parallel --filter "./apps/*" dev',
+  );
 });

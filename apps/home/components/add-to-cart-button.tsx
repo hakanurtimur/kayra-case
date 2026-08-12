@@ -29,7 +29,7 @@ export function AddToCartButton({
     <motion.button
       type="button"
       onClick={handleAddToCart}
-      aria-label={`Add ${productTitle} to cart`}
+      aria-label={`Add to Cart: ${productTitle}`}
       whileHover={shouldReduceMotion ? undefined : { y: -2 }}
       whileTap={shouldReduceMotion ? undefined : { scale: 0.97 }}
       transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}

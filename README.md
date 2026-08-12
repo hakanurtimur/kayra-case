@@ -1,57 +1,118 @@
-# Kayra Micro-Frontend Commerce Demo
+# VEYRA
 
-Kayra is a frontend take-home project built as a small e-commerce demo with two independently buildable Next.js applications:
+VEYRA is a production-minded e-commerce take-home built as two independently
+buildable Next.js applications. The home application owns product discovery and
+detail routes. The cart application owns `/cart`. Next.js Multi-Zone routing
+composes both applications behind the home origin so the experience still feels
+like one storefront.
 
-- `apps/home` serves the shopping experience on port `3000`.
-- `apps/cart` serves the cart zone on port `3002`.
+## Overview
 
-This repository is currently at **Phase 4: production containerization**. Final UI polish, CI/CD, and Phase 5 work remain out of scope.
+- `apps/home` serves the catalog and product detail pages on port `3000`.
+- `apps/cart` serves the cart zone on port `3002` with `basePath: "/cart"`.
+- [Fake Store API](https://fakestoreapi.com/) provides product data.
+- The home application rewrites `/cart/:path*` to the cart service.
+- Shared packages provide UI primitives, product/cart types, and a
+  framework-independent cart contract.
+
+## Features
+
+- Responsive product catalog with editorial, category, popular, and filtered
+  product sections
+- Server-rendered product listing and product detail pages
+- Loading, API error, empty, and product-not-found states
+- Optimized product images with stable responsive geometry
+- Persistent cart quantities using a small versioned browser-storage contract
+- Live cart counts, add, duplicate add, increment, decrement, remove, and clear
+- Toast feedback and accessible keyboard/focus behavior
+- Reduced-motion support
+- Independently buildable applications and production Docker images
 
 ## Architecture
 
-The project uses a pnpm workspace:
+This repository is a pnpm workspace:
 
 ```text
 apps/
-  home/
-  cart/
+  home/             Product listing and product detail zone
+  cart/             Cart zone at /cart
 packages/
-  ui/
-  types/
-  cart-contract/
+  ui/               Shared presentation primitives and VEYRA theme tokens
+  types/            Product, ProductId, and CartItem types
+  cart-contract/    Browser-safe cart persistence and synchronization
+tests/               Route, API, cart-contract, catalog, and UI contract tests
 ```
 
-`home` and `cart` are separate Next.js App Router applications. Shared package shells live under `packages/` so later phases can share UI, types, and cart contract code without coupling the apps into one runtime.
+The applications share source packages but do not share a browser runtime.
+Each app has its own Next.js configuration, build, standalone server, Dockerfile,
+port, and healthcheck.
 
-Each application can also be built as an independent production container. Next.js standalone output traces the runtime files needed by that application from the monorepo root, and each image runs its generated server as a non-root user.
+### Architecture Diagram
 
-## Multi-Zone Routing
+```mermaid
+flowchart LR
+  B[Browser on localhost:3000]
+  H[Home application<br/>Next.js App Router<br/>port 3000]
+  C[Cart application<br/>Next.js App Router<br/>port 3002]
+  F[Fake Store API]
+  CC[packages/cart-contract]
+  LS[(localStorage<br/>kayra:cart:v1)]
+  CE[CustomEvent<br/>same document]
+  SE[storage event<br/>other tabs/documents]
 
-This project uses **Next.js Multi-Zone**, not Module Federation. Multi-Zone keeps each frontend independently buildable and deployable while letting one origin compose the user-facing routes.
-
-For local Phase 1 development:
-
-- Home runs at `http://localhost:3000`.
-- Cart runs at `http://localhost:3002/cart`.
-- Home rewrites `/cart/:path*` to `http://localhost:3002/cart/:path*`.
-
-The cart app sets:
-
-```js
-basePath: "/cart"
+  B -->|/, /products/:id| H
+  B -->|/cart| H
+  H -->|rewrite /cart/:path*<br/>to http://cart:3002/cart/:path*| C
+  H -->|server fetch| F
+  C -->|TanStack Query fetch| F
+  H -. interactive cart UI .-> CC
+  C -. interactive cart UI .-> CC
+  CC -->|read/write CartItem[]| LS
+  CC -->|dispatch after same-document write| CE
+  LS -->|browser cross-document notification| SE
+  CE --> CC
+  SE --> CC
 ```
 
-Because of that `basePath`, the cart app root route is implemented at:
+## Why Next.js Multi-Zone?
 
-```text
-apps/cart/app/page.tsx
-```
+Multi-Zone preserves independent builds and deployment boundaries while
+remaining compatible with the App Router. The home application owns the public
+origin and delegates `/cart` to the independently running cart application.
 
-It is intentionally **not** implemented at `apps/cart/app/cart/page.tsx`; that would risk composing the route as `/cart/cart`.
+Module Federation was not necessary for this scope. The zones do not need to
+load each other's component bundles or share live React state. Explicit shared
+packages and a hard navigation across the zone boundary provide a smaller,
+clearer contract. Home-to-cart links therefore use normal anchors rather than
+`next/link` client navigation.
 
-## Cart Data Model And Contract
+The cart config sets `basePath: "/cart"`, while its root page remains
+`apps/cart/app/page.tsx`. This composes exactly `/cart`; creating
+`apps/cart/app/cart/page.tsx` would incorrectly risk `/cart/cart`.
 
-`packages/cart-contract` is framework-agnostic. It stores only product identity and quantity under the versioned `localStorage` key `kayra:cart:v1`:
+## Data Fetching Strategy
+
+Product listing and detail rendering stay server-first. `apps/home` uses a small
+Fake Store API layer and Next.js server `fetch` with a 300-second revalidation
+policy. The production route output marks `/` and `/products/[id]` as dynamic,
+so product requests happen at runtime rather than during `next build`. Docker
+image creation therefore does not require the Fake Store API to be reachable.
+
+If the API is unavailable at runtime, home renders its route error state. An
+invalid product parameter is rejected before the product streaming boundary and
+returns HTTP 404. A missing product response renders the product not-found UI.
+
+TanStack Query is intentionally not added to read-only home routes. They do not
+need polling, optimistic updates, or client refetching, and keeping the fetch on
+the server avoids adding that client state machinery to the catalog.
+
+The cart is different: cart identity is read from browser storage after
+hydration. Its narrowly scoped TanStack Query provider enriches those IDs from
+the small Fake Store catalog, supports one retry, and exposes a clear retry UI.
+
+## Cart Synchronization
+
+The shared cart model stores only product identity and quantity:
 
 ```ts
 type CartItem = {
@@ -60,192 +121,185 @@ type CartItem = {
 };
 ```
 
-Complete `Product` snapshots are deliberately not persisted. Product titles, images, descriptions, and prices belong to the product source and may change independently; persisting them in the cart would create stale duplicate data.
+Product snapshots are not persisted, which avoids stale duplicated title,
+image, and price data. `packages/cart-contract` validates unknown stored JSON,
+normalizes duplicate IDs, ignores invalid quantities, and safely no-ops when
+browser APIs are unavailable during server rendering.
 
-The package exposes:
+Synchronization uses two browser channels:
 
-```ts
-readCart(): CartItem[]
-writeCart(items: CartItem[]): void
-addToCart(productId: number, quantity?: number): CartItem[]
-updateCartItem(productId: number, quantity: number): CartItem[]
-removeFromCart(productId: number): CartItem[]
-clearCart(): void
-subscribeToCartChanges(listener: () => void): () => void
-getCartItemCount(items: CartItem[]): number
-```
+- A versioned `CustomEvent` updates subscribers immediately after a write in
+  the same document.
+- The browser `storage` event updates subscribers in other documents or tabs on
+  the same origin.
 
-Storage reads validate and normalize unknown JSON. Invalid IDs and quantities are ignored, duplicate product IDs are merged, and quantities remain positive integers. Invalid JSON and unavailable browser storage safely produce an empty cart. All browser-only APIs are guarded so package imports remain safe during server rendering.
+The intended flow is the composed experience at `http://localhost:3000`, where
+`/cart` is rewritten to the cart service and both zones use the same browser
+origin. Hard navigation still preserves `localStorage` state.
 
-## Cart Synchronization
-
-The cart contract uses two browser event channels:
-
-- `writeCart` dispatches a versioned `CustomEvent` so subscribers in the same document update immediately.
-- `subscribeToCartChanges` also listens for the browser `storage` event so other documents or tabs on the same origin can refresh their snapshot.
-
-Home-to-cart navigation is a zone boundary and therefore uses a normal `<a href="/cart">`, not `next/link`. The hard navigation reaches the cart application through the home rewrite, then the cart client boundary performs its initial read from the same origin's `localStorage`. This preserves cart state without pretending the independently built applications share one JavaScript runtime.
-
-This approach is intended for the composed Multi-Zone experience served through the **home origin**, where `http://localhost:3000/cart` is rewritten to the cart application. In that composed flow, home and cart share the same browser origin, so origin-scoped browser storage can synchronize state.
-
-When the apps are accessed directly as separate origins, such as:
-
-- `http://localhost:3000`
-- `http://localhost:3002/cart`
-
-`localStorage` is scoped per origin and cannot be shared between them. This means an item added on direct port 3000 is not visible when the cart app is opened directly on port 3002.
-
-`localStorage` is only a task-level persistence mechanism. A production implementation would normally make cart state backend-owned so authenticated users can persist across origins, deployments, sessions, and devices. A cart API would also reconcile inventory and pricing, and would normally return enriched cart lines or support efficient batch product lookup.
-
-The same origin rule applies to Docker. Use `http://localhost:3000/cart` for the composed flow. Opening `http://localhost:3002/cart` directly creates a different browser origin, so its cart storage is intentionally independent.
+Opening home and cart directly at `localhost:3000` and `localhost:3002` creates
+two different origins. Browser storage cannot synchronize between them. A real
+production system would normally use a backend-owned cart for deployment-
+independent, cross-device, authenticated persistence and server-authoritative
+pricing and inventory.
 
 ## Server and Client Components
 
-Product listing and product detail are implemented as Server Components. They fetch product data on the server through `apps/home/lib/fake-store.ts`.
+- Catalog and product detail pages are async Server Components.
+- Shared `packages/ui` primitives remain server-compatible.
+- Product cards and catalog presentation remain Server Components.
+- Client boundaries are limited to Add to Cart actions, live cart counts,
+  toast/motion behavior, and the interactive cart experience.
+- Browser storage access is isolated behind `packages/cart-contract` and guarded
+  from server execution.
+- The cart QueryClient wraps only the cart experience, not the full layout.
+- No `useEffect`-driven product fetching replaces home server rendering.
 
-TanStack Query remains intentionally absent from the home product listing and detail routes. Those routes do not need client-side refetching, optimistic updates, polling, filtering, or user-specific server state. Keeping their data fetching on the server reduces client bundle weight and lets Next.js own caching and rendering behavior.
+## Docker
 
-The product listing uses `fetch` with `next.revalidate: 300`, so the home route is prerendered with a five-minute revalidation window. Product detail pages also use the shared API layer and are server-rendered on demand for dynamic IDs. Client Components are introduced only where required by Next.js, such as the route-level error boundary.
+Docker Compose runs two independent production services:
 
-Home adds Client Components only for Add to Cart actions, the live cart count, storage subscriptions, and toast feedback. Product cards and product detail rendering remain Server Components.
+| Service | Host port | Internal address | Route |
+| --- | ---: | --- | --- |
+| home | `3000` | `http://home:3000` | `/`, `/products/*`, composed `/cart` |
+| cart | `3002` | `http://cart:3002` | `/cart` |
 
-## Cart Product Data And State Management
+Home is built with `CART_ORIGIN=http://cart:3002`, allowing Docker DNS to
+resolve the cart service privately. Both multi-stage Dockerfiles install from
+the frozen workspace lockfile, build one application, and copy only the Next.js
+standalone output, `.next/static`, and that application's `public` assets into
+the runner image. Containers run as the non-root `node` user.
 
-The cart application uses TanStack Query inside its interactive client boundary. This is justified because cart identity is client-owned in `localStorage`: the product IDs are known only after hydration, and the associated product information must then be loaded in the browser. The assignment's Fake Store catalog is small, so one `GET https://fakestoreapi.com/products` request is simpler and more maintainable than one request per cart line. The QueryClient provider does not wrap the entire application layout.
+Healthchecks use Node's built-in HTTP client:
 
-Redux and Zustand are not used. The durable cart has a small framework-independent contract, and React only needs a `useState`/`useEffect` subscription bridge. A global store would duplicate that state and would not make two independently built zones share a runtime. For a production system, the backend cart API and a server-state cache would replace browser storage as the source of truth.
+- cart checks `http://127.0.0.1:3002/cart`
+- home checks `http://127.0.0.1:3000/`
+- home starts only after cart is healthy
 
-## Production Containers
+`CART_ORIGIN` is build-time configuration because Next.js compiles rewrites into
+the route manifest. Rebuild the home image after changing it.
 
-The repository contains separate multi-stage Dockerfiles:
+## Getting Started
 
-- `apps/home/Dockerfile` builds and runs the home application on port `3000`.
-- `apps/cart/Dockerfile` builds and runs the cart application on port `3002`.
-
-Both Dockerfiles use the repository root as their build context so pnpm can resolve the workspace lockfile and shared packages. Their build stages install dependencies with `pnpm install --frozen-lockfile` and build only the selected application. Their final stages contain the generated standalone server, its traced runtime files, and static assets; they do not copy the full source tree or the builder's complete dependency installation. The runners set `NODE_ENV=production`, bind to `0.0.0.0`, and run as the non-root `node` user.
-
-Both Next.js configs use:
-
-```js
-output: "standalone"
-outputFileTracingRoot: resolve(appDirectory, "../..")
-```
-
-The root is calculated from each config file at build time rather than hardcoded. Tracing from the monorepo root is required because runtime dependencies can come from `packages/` and the root pnpm installation. The generated entry points are `apps/home/server.js` and `apps/cart/server.js` inside their standalone output. Next.js does not copy `.next/static` into standalone automatically, so the Dockerfiles copy those assets separately.
-
-### Cart Origin And Docker Networking
-
-The home config reads `CART_ORIGIN` and defaults to `http://localhost:3002` for direct local development. Docker Compose builds home with:
-
-```text
-CART_ORIGIN=http://cart:3002
-```
-
-`cart` is the service name on Compose's private default network, so Docker DNS resolves it without Nginx, host networking, or a host alias. The browser still uses `http://localhost:3000`; only the server-side rewrite talks to `http://cart:3002`.
-
-Next.js evaluates `rewrites()` during `next build` and records the destination in the route manifest. The home Dockerfile therefore declares `CART_ORIGIN` as a build argument and exports it in the builder stage. This value is effectively **build-time configuration** for the production image. Changing only a running container's environment does not update the compiled rewrite; rebuild the home image with the new argument.
-
-### Build And Run
-
-Build each image independently from the repository root:
+Prerequisites: Node.js 22+, Corepack, and pnpm 9.12.2.
 
 ```bash
-docker build -f apps/home/Dockerfile \
-  --build-arg CART_ORIGIN=http://cart:3002 \
-  -t kayra-home .
-docker build -f apps/cart/Dockerfile -t kayra-cart .
+corepack enable
+corepack prepare pnpm@9.12.2 --activate
+pnpm install --frozen-lockfile
 ```
 
-Build and start the composed production environment:
+Start both development applications:
 
 ```bash
-docker compose down --remove-orphans
-docker compose build --no-cache
-docker compose up -d
-docker compose ps
-docker compose logs home cart
+pnpm dev
 ```
 
-Open the composed experience at `http://localhost:3000`. The independent cart service is also exposed at `http://localhost:3002/cart` for service-level verification. Stop and remove the environment with:
+Open `http://localhost:3000` and use `http://localhost:3000/cart` for the
+composed same-origin cart flow.
+
+Start applications individually when service-level work is needed:
 
 ```bash
-docker compose down --remove-orphans
+pnpm dev:home
+pnpm dev:cart
 ```
 
-### Healthchecks
-
-The cart healthcheck requests `http://127.0.0.1:3002/cart`. Home waits for cart to become healthy, then its healthcheck requests `http://127.0.0.1:3000/`. Both checks use Node's built-in HTTP client, so the minimal runner images do not need `curl` or `wget`.
-
-### Troubleshooting
-
-- If port `3000` or `3002` is already in use, stop the local Next.js process or other container using that port before starting Compose.
-- If `/cart` through port `3000` cannot reach cart, inspect `docker compose ps` and `docker compose logs home cart`; cart must be healthy and home must have been built with `CART_ORIGIN=http://cart:3002`.
-- If the cart service name or internal port changes, rebuild home. Restarting the old image with a different environment value does not change its compiled rewrite manifest.
-- If product requests fail, verify that containers and the browser can reach `https://fakestoreapi.com`. The home error state and cart retry state remain available when the external API is unavailable.
-- If JavaScript or CSS under `/cart` returns 404, confirm that the cart standalone image includes `apps/cart/.next/static` and access cart through the `/cart` base path.
-
-## Commands
-
-Install dependencies:
-
-```bash
-pnpm install
-```
-
-Run home on port 3000:
-
-```bash
-pnpm --filter @kayra/home dev
-```
-
-Run cart on port 3002:
-
-```bash
-pnpm --filter @kayra/cart dev
-```
-
-Verify the Multi-Zone routing contract:
-
-```bash
-pnpm test:routes
-```
-
-Run all tests:
+Run project checks:
 
 ```bash
 pnpm test
-```
-
-Run lint:
-
-```bash
 pnpm lint
-```
-
-Run typecheck:
-
-```bash
 pnpm typecheck
+pnpm build
 ```
 
-Build each app independently:
+Independent production builds:
 
 ```bash
 pnpm --filter @kayra/home build
 pnpm --filter @kayra/cart build
 ```
 
-Build all apps:
+## Docker Usage
 
 ```bash
-pnpm build
+docker compose build
+docker compose up -d
+docker compose ps
+docker compose logs home cart
 ```
 
-The Docker production commands are documented in [Production Containers](#production-containers).
+Open the composed production experience at `http://localhost:3000`. Direct cart
+service verification is available at `http://localhost:3002/cart`, with the
+cross-origin storage limitation described above.
 
-## Architecture Trade-Offs
+Stop and remove the environment:
 
-- Multi-Zone is simpler and more predictable with Next.js App Router than Module Federation for this assignment.
-- Shared packages preserve explicit contracts without forcing the applications into one runtime.
-- Standalone images are smaller and contain less build tooling than images that copy the complete workspace and run `next start`.
-- Separate Dockerfiles duplicate a small amount of setup, but make each application's independent build and runtime contract obvious.
+```bash
+docker compose down --remove-orphans
+```
+
+For a fully cold image verification:
+
+```bash
+docker compose build --no-cache
+```
+
+## Testing
+
+The committed suite uses the Node test runner and TypeScript compilation. It
+covers:
+
+- Multi-Zone `basePath`, rewrite, standalone, and hard-navigation contracts
+- Fake Store API request, cache, invalid-ID, missing-data, and error behavior
+- Cart storage normalization and browser API guards
+- Same-document `CustomEvent` and cross-document `storage` subscriptions
+- Add, update, remove, clear, count, persistence, and cart-line calculations
+- Catalog filtering, featured selection, and popular ranking
+- Focused UI/accessibility contracts, loading geometry, image priority, and
+  Docker public-asset packaging
+
+Production browser and Docker flows are manually verified during submission
+hardening. The repository does not claim a committed full end-to-end browser
+suite.
+
+## Trade-Offs and Limitations
+
+- Cart persistence is intentionally task-level `localStorage`, not a production
+  cart service.
+- Direct ports `3000` and `3002` are separate origins and cannot share storage.
+- Runtime product content depends on Fake Store API availability.
+- There is no checkout backend, authentication, inventory reservation, payment,
+  or order creation.
+- Pricing and product availability are not server-authoritative cart data.
+- The UI does not present controls for functionality that is not implemented.
+- CI/CD is intentionally outside this take-home's final scope; deterministic
+  local and Docker verification commands are documented instead.
+
+## Future Production Improvements
+
+- Backend-owned cart with user/session persistence
+- Batched cart enrichment with authoritative price and inventory validation
+- Authentication and cross-device cart recovery
+- Structured logs, metrics, tracing, and error monitoring
+- Deployment routing for independently released zones
+- A fuller browser end-to-end suite in CI
+
+## Screenshots
+
+All selected screenshots were captured from the production Docker Compose
+environment. Generated Playwright output remains ignored; only these submission
+assets are committed intentionally.
+
+| Desktop listing | Mobile listing |
+| --- | --- |
+| ![VEYRA desktop product listing](docs/screenshots/desktop-listing.png) | ![VEYRA mobile product listing](docs/screenshots/mobile-listing.png) |
+
+| Product detail | Desktop cart |
+| --- | --- |
+| ![VEYRA desktop product detail](docs/screenshots/desktop-product-detail.png) | ![VEYRA desktop cart](docs/screenshots/desktop-cart.png) |
+
+| Mobile cart | Empty cart |
+| --- | --- |
+| ![VEYRA mobile cart](docs/screenshots/mobile-cart.png) | ![VEYRA empty cart](docs/screenshots/empty-cart.png) |

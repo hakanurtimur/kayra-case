@@ -42,6 +42,18 @@ const cartDockerfileSource = await readFile(
   new URL("../apps/cart/Dockerfile", import.meta.url),
   "utf8",
 );
+const addToCartButtonSource = await readFile(
+  new URL("../apps/home/components/add-to-cart-button.tsx", import.meta.url),
+  "utf8",
+);
+const homeCartLinkSource = await readFile(
+  new URL("../apps/home/components/cart-link.tsx", import.meta.url),
+  "utf8",
+);
+const cartCartLinkSource = await readFile(
+  new URL("../apps/cart/components/cart-link.tsx", import.meta.url),
+  "utf8",
+);
 
 test("mobile category links preserve 44px touch targets", () => {
   assert.match(categoryNavSource, /className={`inline-flex min-h-11 /);
@@ -87,4 +99,34 @@ test("standalone Docker images include each application's public assets", () => 
     cartDockerfileSource,
     /COPY --from=builder --chown=node:node \/workspace\/apps\/cart\/public \.\/apps\/cart\/public/,
   );
+});
+
+test("invalid product params are rejected before the streaming boundary", async () => {
+  const productLayoutSource = await readFile(
+    new URL("../apps/home/app/products/[id]/layout.tsx", import.meta.url),
+    "utf8",
+  );
+  const rootNotFoundSource = await readFile(
+    new URL("../apps/home/app/not-found.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(productLayoutSource, /parseProductId\(id\)/);
+  assert.match(productLayoutSource, /notFound\(\)/);
+  assert.match(
+    rootNotFoundSource,
+    /\.\/products\/\[id\]\/not-found/,
+    "the pre-stream route guard should retain the branded not-found UI",
+  );
+});
+
+test("visible action labels lead their accessible names", () => {
+  assert.match(
+    addToCartButtonSource,
+    /aria-label={`Add to Cart: \${productTitle}`}/,
+  );
+
+  for (const source of [homeCartLinkSource, cartCartLinkSource]) {
+    assert.match(source, /aria-label={`Cart \${itemCount}`}/);
+  }
 });

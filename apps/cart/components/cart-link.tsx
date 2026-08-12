@@ -11,14 +11,13 @@ type CartLinkProps = {
 export function CartLink({ variant = "desktop" }: CartLinkProps) {
   const { items } = useCart();
   const itemCount = getCartItemCount(items);
-  const itemLabel = itemCount === 1 ? "item" : "items";
   const isMobile = variant === "mobile";
 
   return (
     <a
       href="/cart"
       aria-current="page"
-      aria-label={`View cart, ${itemCount} ${itemLabel}`}
+      aria-label={`Cart ${itemCount}`}
       className={
         isMobile
           ? "flex min-w-0 items-center justify-center gap-2 rounded-md bg-accent px-3 text-xs font-semibold text-ink transition duration-200 ease-premium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
