@@ -22,7 +22,8 @@ FROM dependencies AS builder
 
 COPY . .
 
-RUN pnpm --filter @kayra/cart build
+RUN pnpm --filter @kayra/cart build \
+  && rm -rf apps/cart/.next/standalone/node_modules/typescript apps/cart/.next/standalone/node_modules/.pnpm/typescript@*
 
 FROM node:22-alpine AS runner
 

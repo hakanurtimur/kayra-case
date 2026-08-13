@@ -25,7 +25,8 @@ ENV CART_ORIGIN=$CART_ORIGIN
 
 COPY . .
 
-RUN pnpm --filter @kayra/home build
+RUN pnpm --filter @kayra/home build \
+  && rm -rf apps/home/.next/standalone/node_modules/typescript apps/home/.next/standalone/node_modules/.pnpm/typescript@*
 
 FROM node:22-alpine AS runner
 

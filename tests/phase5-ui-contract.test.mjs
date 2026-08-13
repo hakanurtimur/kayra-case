@@ -101,6 +101,17 @@ test("standalone Docker images include each application's public assets", () => 
   );
 });
 
+test("standalone Docker runners remove traced development-only TypeScript", () => {
+  assert.match(
+    homeDockerfileSource,
+    /rm -rf apps\/home\/\.next\/standalone\/node_modules\/typescript apps\/home\/\.next\/standalone\/node_modules\/\.pnpm\/typescript@\*/,
+  );
+  assert.match(
+    cartDockerfileSource,
+    /rm -rf apps\/cart\/\.next\/standalone\/node_modules\/typescript apps\/cart\/\.next\/standalone\/node_modules\/\.pnpm\/typescript@\*/,
+  );
+});
+
 test("invalid product params are rejected before the streaming boundary", async () => {
   const productLayoutSource = await readFile(
     new URL("../apps/home/app/products/[id]/layout.tsx", import.meta.url),
