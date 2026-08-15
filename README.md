@@ -67,7 +67,7 @@ flowchart LR
   C -->|TanStack Query fetch| F
   H -. interactive cart UI .-> CC
   C -. interactive cart UI .-> CC
-  CC -->|read/write CartItem[]| LS
+  CC -->|read/write cart items| LS
   CC -->|dispatch after same-document write| CE
   LS -->|browser cross-document notification| SE
   CE --> CC
